@@ -1,0 +1,954 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Generation Terminal</title>
+
+  <style>
+    * {
+      box-sizing: border-box;
+    }
+
+    :root {
+      --bg: #0c0c0c;
+      --titlebar: #202020;
+      --tab: #181818;
+      --tab-active: #0c0c0c;
+      --border: #333333;
+      --text: #cccccc;
+      --bright: #ffffff;
+      --accent: #4fc1ff;
+      --green: #6a9955;
+      --yellow: #dcdcaa;
+      --red: #f44747;
+      --box: #111111;
+      --pre: #050505;
+    }
+
+    body {
+      margin: 0;
+      height: 100vh;
+      background: var(--bg);
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      color: var(--text);
+      overflow: hidden;
+    }
+
+    .window {
+      width: 100vw;
+      height: 100vh;
+      background: var(--bg);
+      display: flex;
+      flex-direction: column;
+    }
+
+    .titlebar {
+      height: 40px;
+      background: var(--titlebar);
+      display: flex;
+      align-items: center;
+      color: var(--bright);
+      user-select: none;
+      border-bottom: 1px solid var(--border);
+      overflow-x: auto;
+      overflow-y: hidden;
+    }
+
+    .titlebar::-webkit-scrollbar {
+      height: 4px;
+    }
+
+    .titlebar::-webkit-scrollbar-thumb {
+      background: #555;
+    }
+
+    .tabs {
+      display: flex;
+      align-items: center;
+      height: 100%;
+    }
+
+    .tab {
+      height: 40px;
+      min-width: 145px;
+      max-width: 190px;
+      padding: 0 12px;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      background: var(--tab);
+      border-right: 1px solid var(--border);
+      font-size: 13px;
+      cursor: pointer;
+      color: var(--text);
+    }
+
+    .tab.active {
+      background: var(--tab-active);
+      color: var(--bright);
+      border-top: 2px solid var(--accent);
+    }
+
+    .tab-title {
+      overflow: hidden;
+      text-overflow: ellipsis;
+      white-space: nowrap;
+    }
+
+    .tab-close {
+      margin-left: 8px;
+      color: #999;
+      font-size: 15px;
+      padding: 2px 5px;
+      border-radius: 3px;
+    }
+
+    .tab-close:hover {
+      background: var(--border);
+      color: var(--bright);
+    }
+
+    .plus {
+      height: 40px;
+      width: 44px;
+      min-width: 44px;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 22px;
+      color: var(--text);
+      cursor: pointer;
+      background: var(--titlebar);
+      border-right: 1px solid var(--border);
+    }
+
+    .plus:hover {
+      background: var(--border);
+    }
+
+    .terminal {
+      flex: 1;
+      display: flex;
+      flex-direction: column;
+      padding: 12px;
+      overflow: hidden;
+      cursor: text;
+    }
+
+    .screen {
+      flex: 1;
+      overflow-y: auto;
+      white-space: pre-wrap;
+      line-height: 1.45;
+      font-size: 15px;
+      padding-bottom: 12px;
+    }
+
+    .screen::-webkit-scrollbar {
+      width: 10px;
+    }
+
+    .screen::-webkit-scrollbar-thumb {
+      background: #444;
+    }
+
+    .screen::-webkit-scrollbar-track {
+      background: #111;
+    }
+
+    .input-row {
+      min-height: 36px;
+      display: flex;
+      align-items: center;
+      font-size: 15px;
+      padding: 6px 0;
+      border-top: 1px solid var(--border);
+      background: var(--bg);
+    }
+
+    .prompt {
+      color: var(--accent);
+      margin-right: 8px;
+      white-space: nowrap;
+    }
+
+    #commandInput {
+      flex: 1;
+      min-height: 30px;
+      background: transparent;
+      border: none;
+      outline: none;
+      color: var(--bright);
+      font-family: Consolas, "Cascadia Mono", "Courier New", monospace;
+      font-size: 16px;
+      caret-color: var(--bright);
+      padding: 4px;
+    }
+
+    .command {
+      color: var(--bright);
+    }
+
+    .green {
+      color: var(--green);
+    }
+
+    .yellow {
+      color: var(--yellow);
+    }
+
+    .red {
+      color: var(--red);
+    }
+
+    .blue {
+      color: var(--accent);
+    }
+
+    .box {
+      border: 1px solid var(--border);
+      background: var(--box);
+      padding: 12px;
+      margin: 10px 0;
+      color: var(--text);
+      border-radius: 4px;
+    }
+
+    pre {
+      background: var(--pre);
+      padding: 10px;
+      overflow-x: auto;
+      border: 1px solid var(--border);
+      color: var(--yellow);
+    }
+
+    @media (max-width: 600px) {
+      .screen {
+        font-size: 14px;
+      }
+
+      #commandInput {
+        font-size: 16px;
+      }
+
+      .prompt {
+        font-size: 13px;
+      }
+
+      .tab {
+        min-width: 120px;
+        max-width: 150px;
+      }
+    }
+  </style>
+</head>
+
+<body>
+  <div class="window">
+    <div class="titlebar">
+      <div class="tabs" id="tabs"></div>
+      <div class="plus" id="newTabBtn">+</div>
+    </div>
+
+    <div class="terminal" id="terminal">
+      <div id="screen" class="screen"></div>
+
+      <div class="input-row">
+        <span class="prompt" id="promptText">PS C:\Users\Guest&gt;</span>
+        <input
+          id="commandInput"
+          autocomplete="off"
+          autocorrect="off"
+          autocapitalize="off"
+          spellcheck="false"
+          autofocus
+        />
+      </div>
+    </div>
+  </div>
+
+  <script>
+    const screen = document.getElementById("screen");
+    const input = document.getElementById("commandInput");
+    const terminal = document.getElementById("terminal");
+    const tabsContainer = document.getElementById("tabs");
+    const newTabBtn = document.getElementById("newTabBtn");
+
+    let tabs = [];
+    let activeTabId = null;
+    let tabCounter = 0;
+    let credits = 25;
+    let currentTheme = "dark";
+
+    const themes = {
+      dark: {
+        bg: "#0c0c0c",
+        titlebar: "#202020",
+        tab: "#181818",
+        active: "#0c0c0c",
+        border: "#333333",
+        text: "#cccccc",
+        bright: "#ffffff",
+        accent: "#4fc1ff",
+        green: "#6a9955",
+        yellow: "#dcdcaa",
+        red: "#f44747",
+        box: "#111111",
+        pre: "#050505"
+      },
+      blue: {
+        bg: "#061626",
+        titlebar: "#0b2942",
+        tab: "#0d3558",
+        active: "#061626",
+        border: "#1e5d8c",
+        text: "#c9e7ff",
+        bright: "#ffffff",
+        accent: "#56c8ff",
+        green: "#7ee787",
+        yellow: "#ffdf7e",
+        red: "#ff6b6b",
+        box: "#082033",
+        pre: "#03101c"
+      },
+      green: {
+        bg: "#001100",
+        titlebar: "#002000",
+        tab: "#003300",
+        active: "#001100",
+        border: "#00aa44",
+        text: "#99ff99",
+        bright: "#ddffdd",
+        accent: "#00ff66",
+        green: "#00ff66",
+        yellow: "#ccff66",
+        red: "#ff5555",
+        box: "#001a00",
+        pre: "#000800"
+      },
+      purple: {
+        bg: "#17091f",
+        titlebar: "#241033",
+        tab: "#321547",
+        active: "#17091f",
+        border: "#6d3a8c",
+        text: "#ead7ff",
+        bright: "#ffffff",
+        accent: "#d78cff",
+        green: "#9effa1",
+        yellow: "#ffe58a",
+        red: "#ff6f91",
+        box: "#20102c",
+        pre: "#0d0612"
+      }
+    };
+
+    const helpText = `
+Available commands:
+
+/help
+  Shows all commands.
+
+/clear
+  Clears the current tab.
+
+/tab
+  Creates a new tab.
+
+/close
+  Closes the current tab.
+
+/rename Your Tab Name
+  Renames the current tab.
+
+/theme
+  Shows available themes.
+
+/theme dark
+/theme blue
+/theme green
+/theme purple
+  Changes the terminal theme.
+
+/history
+  Shows commands typed in this tab.
+
+/about
+  Shows fake system info.
+
+/credits
+  Shows your fake generation credits.
+
+/Generation image
+/Generation video
+/Generation code
+/Generation other
+  Opens generation help.
+
+Examples:
+  /Generation image a robot in a neon city
+  /Generation video a dragon flying over mountains
+  /Generation code make a calculator app
+  /Generation other give me a game idea
+`;
+
+    terminal.addEventListener("click", function () {
+      input.focus();
+    });
+
+    window.addEventListener("load", function () {
+      createTab();
+      input.focus();
+    });
+
+    newTabBtn.addEventListener("click", function (event) {
+      event.stopPropagation();
+      createTab();
+      input.focus();
+    });
+
+    function applyTheme(name) {
+      const theme = themes[name];
+
+      if (!theme) {
+        saveText("Theme not found. Type /theme to see themes.", "red");
+        return;
+      }
+
+      currentTheme = name;
+
+      document.documentElement.style.setProperty("--bg", theme.bg);
+      document.documentElement.style.setProperty("--titlebar", theme.titlebar);
+      document.documentElement.style.setProperty("--tab", theme.tab);
+      document.documentElement.style.setProperty("--tab-active", theme.active);
+      document.documentElement.style.setProperty("--border", theme.border);
+      document.documentElement.style.setProperty("--text", theme.text);
+      document.documentElement.style.setProperty("--bright", theme.bright);
+      document.documentElement.style.setProperty("--accent", theme.accent);
+      document.documentElement.style.setProperty("--green", theme.green);
+      document.documentElement.style.setProperty("--yellow", theme.yellow);
+      document.documentElement.style.setProperty("--red", theme.red);
+      document.documentElement.style.setProperty("--box", theme.box);
+      document.documentElement.style.setProperty("--pre", theme.pre);
+    }
+
+    function createTab() {
+      tabCounter++;
+
+      const newTab = {
+        id: Date.now() + Math.random(),
+        title: "PowerShell " + tabCounter,
+        commandHistory: [],
+        history: [
+          { text: "Windows PowerShell", className: "" },
+          { text: "Copyright (C) Microsoft Corporation. All rights reserved.", className: "" },
+          { text: "", className: "" },
+          { text: "Generation Terminal loaded.", className: "" },
+          { text: "Type /help to begin.", className: "green" }
+        ]
+      };
+
+      tabs.push(newTab);
+      activeTabId = newTab.id;
+
+      renderTabs();
+      renderScreen();
+    }
+
+    function closeCurrentTab() {
+      if (tabs.length === 1) {
+        clearCurrentTab();
+        saveText("Only tab cleared. You need at least one tab open.", "yellow");
+        return;
+      }
+
+      const activeIndex = tabs.findIndex(tab => tab.id === activeTabId);
+      tabs = tabs.filter(tab => tab.id !== activeTabId);
+
+      const nextTab = tabs[activeIndex] || tabs[activeIndex - 1] || tabs[0];
+      activeTabId = nextTab.id;
+
+      renderTabs();
+      renderScreen();
+      input.focus();
+    }
+
+    function closeTab(tabId, event) {
+      event.stopPropagation();
+
+      if (tabs.length === 1) {
+        clearCurrentTab();
+        saveText("Only tab cleared. You need at least one tab open.", "yellow");
+        return;
+      }
+
+      const closingIndex = tabs.findIndex(tab => tab.id === tabId);
+      tabs = tabs.filter(tab => tab.id !== tabId);
+
+      if (activeTabId === tabId) {
+        const nextTab = tabs[closingIndex] || tabs[closingIndex - 1] || tabs[0];
+        activeTabId = nextTab.id;
+      }
+
+      renderTabs();
+      renderScreen();
+      input.focus();
+    }
+
+    function switchTab(tabId) {
+      activeTabId = tabId;
+      renderTabs();
+      renderScreen();
+      input.focus();
+    }
+
+    function getActiveTab() {
+      return tabs.find(tab => tab.id === activeTabId);
+    }
+
+    function renderTabs() {
+      tabsContainer.innerHTML = "";
+
+      tabs.forEach(tab => {
+        const tabElement = document.createElement("div");
+        tabElement.className = "tab" + (tab.id === activeTabId ? " active" : "");
+        tabElement.onclick = function () {
+          switchTab(tab.id);
+        };
+
+        const title = document.createElement("span");
+        title.className = "tab-title";
+        title.textContent = tab.title;
+
+        const close = document.createElement("span");
+        close.className = "tab-close";
+        close.textContent = "×";
+        close.onclick = function (event) {
+          closeTab(tab.id, event);
+        };
+
+        tabElement.appendChild(title);
+        tabElement.appendChild(close);
+        tabsContainer.appendChild(tabElement);
+      });
+    }
+
+    function renderScreen() {
+      screen.innerHTML = "";
+
+      const activeTab = getActiveTab();
+
+      if (!activeTab) return;
+
+      activeTab.history.forEach(item => {
+        if (item.html) {
+          const div = document.createElement("div");
+          div.innerHTML = item.html;
+          screen.appendChild(div);
+        } else {
+          const div = document.createElement("div");
+          div.className = item.className || "";
+          div.textContent = item.text;
+          screen.appendChild(div);
+        }
+      });
+
+      scrollToBottom();
+    }
+
+    function saveText(text, className = "") {
+      const activeTab = getActiveTab();
+
+      if (!activeTab) return;
+
+      activeTab.history.push({
+        text: text,
+        className: className
+      });
+
+      renderScreen();
+    }
+
+    function saveHTML(html) {
+      const activeTab = getActiveTab();
+
+      if (!activeTab) return;
+
+      activeTab.history.push({
+        html: html
+      });
+
+      renderScreen();
+    }
+
+    function scrollToBottom() {
+      screen.scrollTop = screen.scrollHeight;
+    }
+
+    function clearCurrentTab() {
+      const activeTab = getActiveTab();
+      activeTab.history = [];
+      renderScreen();
+    }
+
+    function escapeHTML(str) {
+      return str.replace(/[&<>'"]/g, function (tag) {
+        const chars = {
+          "&": "&amp;",
+          "<": "&lt;",
+          ">": "&gt;",
+          "'": "&#39;",
+          '"': "&quot;"
+        };
+        return chars[tag] || tag;
+      });
+    }
+
+    function fakeLoading(callback) {
+      const currentTabId = activeTabId;
+
+      const steps = [
+        "Initializing generation engine...",
+        "Reading prompt...",
+        "Compiling request...",
+        "Rendering output...",
+        "Complete."
+      ];
+
+      let i = 0;
+
+      const interval = setInterval(function () {
+        const oldActiveTabId = activeTabId;
+        activeTabId = currentTabId;
+
+        saveText(steps[i], "yellow");
+
+        activeTabId = oldActiveTabId;
+        renderTabs();
+        renderScreen();
+
+        i++;
+
+        if (i >= steps.length) {
+          clearInterval(interval);
+
+          setTimeout(function () {
+            const oldActiveTabId = activeTabId;
+            activeTabId = currentTabId;
+
+            callback();
+
+            activeTabId = oldActiveTabId;
+            renderTabs();
+            renderScreen();
+          }, 400);
+        }
+      }, 450);
+    }
+
+    function showGenerationHelp(type) {
+      if (type === "image") {
+        saveText(`
+IMAGE GENERATION MODE
+
+Example:
+  /Generation image a black sports car in the rain
+`);
+      }
+
+      if (type === "video") {
+        saveText(`
+VIDEO GENERATION MODE
+
+Example:
+  /Generation video a robot running through a futuristic city
+`);
+      }
+
+      if (type === "code") {
+        saveText(`
+CODE GENERATION MODE
+
+Example:
+  /Generation code make a login page
+`);
+      }
+
+      if (type === "other") {
+        saveText(`
+OTHER GENERATION MODE
+
+Example:
+  /Generation other make a story idea about space
+`);
+      }
+    }
+
+    function handleGeneration(type, promptText) {
+      if (!promptText) {
+        saveText("Error: please write something after the command.", "red");
+        return;
+      }
+
+      if (credits <= 0) {
+        saveText("No credits left. Type /credits to check your balance.", "red");
+        return;
+      }
+
+      credits--;
+
+      saveText("Starting " + type + " generation...", "blue");
+      saveText("1 credit used. Credits left: " + credits, "yellow");
+
+      fakeLoading(function () {
+        if (type === "image") {
+          saveHTML(`
+            <div class="box">
+              <b class="blue">IMAGE GENERATED</b><br><br>
+              Prompt: ${escapeHTML(promptText)}<br><br>
+              Status: Ready<br>
+              Preview: 🖼️ ${escapeHTML(promptText)}
+            </div>
+          `);
+        }
+
+        if (type === "video") {
+          saveHTML(`
+            <div class="box">
+              <b class="blue">VIDEO GENERATED</b><br><br>
+              Prompt: ${escapeHTML(promptText)}<br><br>
+              Duration: 8 seconds<br>
+              Quality: 1080p<br>
+              Status: Ready<br><br>
+              🎬 ${escapeHTML(promptText)}
+            </div>
+          `);
+        }
+
+        if (type === "code") {
+          saveHTML(`
+            <div class="box">
+              <b class="blue">CODE GENERATED</b><br><br>
+              Prompt: ${escapeHTML(promptText)}<br><br>
+              <pre>&lt;button onclick="alert('Hello from your app!')"&gt;
+  Click Me
+&lt;/button&gt;
+
+&lt;script&gt;
+  console.log("Generated app started");
+&lt;/script&gt;</pre>
+            </div>
+          `);
+        }
+
+        if (type === "other") {
+          saveHTML(`
+            <div class="box">
+              <b class="blue">OTHER GENERATION COMPLETE</b><br><br>
+              Prompt: ${escapeHTML(promptText)}<br><br>
+              Result:<br>
+              Here is a generated idea based on your prompt: ${escapeHTML(promptText)}.
+            </div>
+          `);
+        }
+      });
+    }
+
+    function showHistory() {
+      const activeTab = getActiveTab();
+
+      if (!activeTab.commandHistory.length) {
+        saveText("No command history yet.", "yellow");
+        return;
+      }
+
+      let text = "Command history for " + activeTab.title + ":\n\n";
+
+      activeTab.commandHistory.forEach((cmd, index) => {
+        text += index + 1 + ". " + cmd + "\n";
+      });
+
+      saveText(text);
+    }
+
+    function showAbout() {
+      saveText(`
+Generation Terminal OS
+Version: 2.0
+Shell: PowerShell-style
+Tabs: Enabled
+Theme: ${currentTheme}
+Generation Engine: Simulated
+Status: Online
+`);
+    }
+
+    function showCredits() {
+      saveText(`
+Generation Credits
+
+Credits left: ${credits}
+
+Each generation uses 1 credit.
+This is fake credit tracking for the terminal app.
+`);
+    }
+
+    function showThemes() {
+      saveText(`
+Available themes:
+
+/theme dark
+/theme blue
+/theme green
+/theme purple
+
+Current theme: ${currentTheme}
+`);
+    }
+
+    function renameCurrentTab(newName) {
+      const activeTab = getActiveTab();
+
+      if (!newName.trim()) {
+        saveText("Usage: /rename My Tab Name", "yellow");
+        return;
+      }
+
+      activeTab.title = newName.trim();
+      renderTabs();
+      saveText("Tab renamed to: " + activeTab.title, "green");
+    }
+
+    function runCommand(command) {
+      const activeTab = getActiveTab();
+
+      if (activeTab) {
+        activeTab.commandHistory.push(command);
+      }
+
+      saveText("PS C:\\Users\\Guest> " + command, "command");
+
+      const lower = command.toLowerCase();
+
+      if (lower === "/help") {
+        saveText(helpText);
+        return;
+      }
+
+      if (lower === "/clear") {
+        clearCurrentTab();
+        return;
+      }
+
+      if (lower === "/tab") {
+        createTab();
+        return;
+      }
+
+      if (lower === "/close") {
+        closeCurrentTab();
+        return;
+      }
+
+      if (lower === "/history") {
+        showHistory();
+        return;
+      }
+
+      if (lower === "/about") {
+        showAbout();
+        return;
+      }
+
+      if (lower === "/credits") {
+        showCredits();
+        return;
+      }
+
+      if (lower === "/theme") {
+        showThemes();
+        return;
+      }
+
+      if (lower.startsWith("/theme ")) {
+        const themeName = lower.replace("/theme ", "").trim();
+
+        if (themes[themeName]) {
+          applyTheme(themeName);
+          saveText("Theme changed to: " + themeName, "green");
+        } else {
+          saveText("Theme not found. Type /theme to see themes.", "red");
+        }
+
+        return;
+      }
+
+      if (lower.startsWith("/rename ")) {
+        const newName = command.slice(8);
+        renameCurrentTab(newName);
+        return;
+      }
+
+      if (lower === "/generation image") {
+        showGenerationHelp("image");
+        return;
+      }
+
+      if (lower === "/generation video") {
+        showGenerationHelp("video");
+        return;
+      }
+
+      if (lower === "/generation code") {
+        showGenerationHelp("code");
+        return;
+      }
+
+      if (lower === "/generation other") {
+        showGenerationHelp("other");
+        return;
+      }
+
+      if (lower.startsWith("/generation image ")) {
+        const text = command.slice(18);
+        handleGeneration("image", text);
+        return;
+      }
+
+      if (lower.startsWith("/generation video ")) {
+        const text = command.slice(18);
+        handleGeneration("video", text);
+        return;
+      }
+
+      if (lower.startsWith("/generation code ")) {
+        const text = command.slice(17);
+        handleGeneration("code", text);
+        return;
+      }
+
+      if (lower.startsWith("/generation other ")) {
+        const text = command.slice(18);
+        handleGeneration("other", text);
+        return;
+      }
+
+      saveText("Unknown command. Type /help", "red");
+    }
+
+    input.addEventListener("keydown", function (e) {
+      if (e.key === "Enter") {
+        const command = input.value.trim();
+
+        if (command !== "") {
+          runCommand(command);
+        }
+
+        input.value = "";
+      }
+    });
+  </script>
+</body>
+</html>
